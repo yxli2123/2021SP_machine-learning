@@ -1,7 +1,9 @@
 import pandas as pd
 import os
-import torch
 import time
+import numpy as np
+import torch
+import pickle
 
 
 def load_data(data_dir='./train_data_all/'):
@@ -30,34 +32,34 @@ def load_data(data_dir='./train_data_all/'):
         df['CommentsContent'] = df['CommentsContent'].str.replace('[^a-zA-Z0-9]', ' ', regex=True)
 
         for index, row in df.iterrows():
-            # concatenate 'Comments Title' and 'Comments Content'
-            # convert all letters to lowercase
-            concatenated_comments = row['CommentsTitle'].lower() + row['CommentsContent'].lower()
+            # if encounter invalid input, skip it
+            try:
+                # append the score or star to the huge list y; row['CommentsStars'] is an integer
+                # !!! some element may be str type, e.g., '5.0', so we first need to convert it into float
+                # type, i.e., 5.0 and then convert it into int type, i.e., 5
+                string = str(row['CommentsStars']).split()[0]
+                y.append(int(float(string)))
+                # concatenate 'Comments Title' and 'Comments Content'
+                # convert all letters to lowercase
+                concatenated_comments = row['CommentsTitle'].lower() + row['CommentsContent'].lower()
 
-            # split sentence into word list and append the list into the huge list X
-            X.append(concatenated_comments.split())
-            # append the score or star to the huge list y; row['CommentsStars'] is an integer
-            y.append(row['CommentsStars'])
+                # split sentence into word list and append the list into the huge list X
+                concatenated_comments = concatenated_comments.split()
+                X.append(concatenated_comments)
+            finally:
+                pass
+    return X, np.asarray(y)
 
-    return X, y
 
-
-def embedding(sentence: list, words_vector: dict, length=100):
+def embedding_v2(sentence: list, words_vector: dict, dim=200):
     """
-    :param length: the length of final sentence, probably being truncated or padded
-    :param words_vector: map a word to a tuple (300, )
+    :param words_vector: map a word to a tuple (25, )
     :param sentence: a word list, e.g., ['i', 'love', 'ustc', '.']
+    :param dim: the dimension of a word vector
     :return: a truncated sentence with its embedding
     """
     # create a list with potential shape (K, )
     sentence_embedding = []
-
-    # truncate the sentence if it is greater than 'length'
-    if len(sentence) > length:
-        sentence = sentence[0: length]
-    # else pad '.' to a sentence
-    else:
-        sentence = sentence + ['.' for _ in range(length - len(sentence))]
 
     # embedding word
     for word in sentence:
@@ -66,20 +68,24 @@ def embedding(sentence: list, words_vector: dict, length=100):
             sentence_embedding.append(words_vector[word])
         # else we embed this word by a default zero vector
         else:
-            sentence_embedding.append([0 for _ in range(300)])
+            sentence_embedding.append(np.zeros(dim))
 
-    cc = torch.as_tensor(sentence_embedding)
-    return cc
+    return sentence_embedding
 
 
 if __name__ == '__main__':
     start = time.time()
-    my_words = torch.load('./words_vector.pt')
+    with open("./word2vector/words_vector.pk", "rb") as fp1:
+        my_words = pickle.load(fp1)
     end = time.time()
     print(end - start)
-    comments, label = load_data()
-    comments_embedding = torch.zeros((len(comments), 100, 300))
-    for i, comment in enumerate(comments):
-        comments_embedding[i] = embedding(comment, my_words)
-    torch.save(comments_embedding, './comments_embedding.pt')
+    comments, label = load_data(data_dir='./train_data_all')
+    comments_embedding = []
+    for comment in comments:
+        comments_embedding.append(embedding_v2(comment, my_words))
+
+    with open("./word2vector/data.pk", "wb") as fp2:
+        pickle.dump((comments_embedding, label), fp2)
+
+    print(len(comments_embedding))
     print("Finished")
