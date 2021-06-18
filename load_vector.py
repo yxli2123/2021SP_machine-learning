@@ -1,5 +1,8 @@
 import io
-import torch
+import pickle
+import time
+
+import numpy as np
 
 
 def load_vectors(fname):
@@ -13,12 +16,26 @@ def load_vectors(fname):
     return data
 
 
+def load_vectors_v2(file_name):
+    word2vector_dic = {}
+    with open(file_name, "r") as file:
+        word2vector = file.readlines()
+        for word in word2vector:
+            key = word.split()[0]
+            val = [float(v) for v in word.split()[1:]]
+            val = np.asarray(val)
+            word2vector_dic.update({key: val})
+    return word2vector_dic
+
+
 if __name__ == '__main__':
+    print("Begin to load word2vector raw data")
+    start = time.time()
+    my_words = load_vectors_v2('./word2vector/glove.twitter.27B.200d.txt')
+    end = time.time()
+    print("Cost", end - start, "s to load!")
 
-    my_words = load_vectors('/Users/yxli/Downloads/wiki-news-300d-1M.vec')
-    for key in my_words:
-        my_words[key] = [val for val in my_words[key]]
-    torch.save(my_words, './words_vector.pt')
+    with open('./word2vector/words_vector.pk', "wb") as fp:
+        pickle.dump(my_words, fp)
 
-    # my_words = torch.load('./words_vector.pt')
-    # print(my_words)
+    print("Save word2vector dictionary successfully!")
